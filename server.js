@@ -24,7 +24,7 @@ var server = http.createServer(function(request, response) {
   response.end();
 });
 
-server.listen(80);
+server.listen(PORT);
 console.log("Server is listening");
 
 function updateApiCounter(obj1) {
