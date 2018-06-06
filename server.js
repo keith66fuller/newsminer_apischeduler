@@ -215,7 +215,7 @@ function callApi(intervalObj, source, startAt, pageNum, dbBacklog) {
     })
     .catch(err => {
       console.log(err)
-      clearInterval(intervalObj)
+      // clearInterval(intervalObj)
     })
 }
 
@@ -272,3 +272,5 @@ db.sequelize.sync().then(function () {
 })
 
 sourceLoop();
+
+// $ git push origin speedup_functionality && git checkout dev && git pull origin dev speedup_functionality && git push origin dev && git checkout master && git pull origin dev master && git push origin master && git checkout dev
