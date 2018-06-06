@@ -10,8 +10,8 @@ const PORT = process.env.PORT || 8081;
 const http = require("http");
 
 
-var server = http.createServer(function(request, response) {
-  response.writeHead(200, {"Content-Type": "text/html"});
+var server = http.createServer(function (request, response) {
+  response.writeHead(200, { "Content-Type": "text/html" });
   response.write("<!DOCTYPE \"html\">");
   response.write("<html>");
   response.write("<head>");
@@ -48,8 +48,15 @@ function updateApiCounter(obj1) {
                   });
               } else {
                 if (obj.qPeriod) {
-                  let t = moment.duration(moment(moment().utc()).diff(moment(obj.qPeriod)))
-                  resolve((created ? "New" : "Existing") + " API " + obj1.handle + " call counter for " + obj1.temporal + " is " + obj.counter + " with " + t + " seconds remaining in the " + obj.qPeriod + " period")
+                  let now = moment().utc();
+                  let period = moment(obj.qPeriod ? obj.qPeriod : obj.date).utc();
+                  let counter = parseInt(obj.counter)
+                  // console.log("NOW: " + now)
+                  // console.log("PERIOD: " + period)
+                  // console.log("DIFF: " + Math.floor(now.diff(period) / 1000))
+                  // console.log("Calls remaining: " + (250 - counter))
+                  console.log("New interval: " + Math.floor(Math.floor(now.diff(period) / 1000) / (250 - counter)) + " seconds between calls");
+                  resolve((created ? "New" : "Existing") + " API " + obj1.handle + " call counter for " + obj1.temporal + " is " + obj.counter + " with " + 1 + " seconds remaining in the " + obj.qPeriod + " period")
                 } else {
                   let t = moment.duration(moment(moment()).utc().diff(obj.date))
                   resolve((created ? "New" : "Existing") + " API " + obj1.handle + " call counter for " + obj1.temporal + " is " + obj.counter + " with " + t + " seconds remaining in the " + obj.date + " period")
@@ -172,7 +179,7 @@ function callApi(intervalObj, source, startAt, pageNum, dbBacklog) {
               })
                 .then(() => {
                   if (dbBacklog.pagesRetrieved >= dbBacklog.totalPages) {
-                    console.log("Removing Backlog for "+db.Backlog.source)
+                    console.log("Removing Backlog for " + db.Backlog.source)
                     dbBacklog.destroy();
                     if (typeof response.articles[0] != 'undefined') {
                       console.log("UPDATING TIME TO " + response.articles[0].publishedAt)
@@ -256,14 +263,14 @@ async function sourceLoop() {
           })
       }, process.env.API_INTERVAL, dbSources)
     });
-  } catch(err) {
+  } catch (err) {
     throw err;
   }
 }
 
-db.sequelize.sync().then(function() {
+db.sequelize.sync().then(function () {
   server.listen(PORT);
   console.log("Server is listening");
-  })
+})
 
 sourceLoop();
