@@ -45,10 +45,15 @@ function updateApiCounter(obj1) {
                 obj.update({ exceeded: true })
                   .then(() => {
                     return reject("WARNING: " + obj1.handle + " call limit exceeded!")
-                  })
-
+                  });
               } else {
-                resolve((created ? "New" : "Existing") + " API " + obj1.handle + " call counter for " + obj1.temporal + " is " + obj.counter)
+                if (obj.qPeriod) {
+                  let t = moment.duration(moment(moment().utc()).diff(moment(obj.qPeriod)))
+                  resolve((created ? "New" : "Existing") + " API " + obj1.handle + " call counter for " + obj1.temporal + " is " + obj.counter + " with " + t + " seconds remaining in the " + obj.qPeriod + " period")
+                } else {
+                  let t = moment.duration(moment(moment()).utc().diff(obj.date))
+                  resolve((created ? "New" : "Existing") + " API " + obj1.handle + " call counter for " + obj1.temporal + " is " + obj.counter + " with " + t + " seconds remaining in the " + obj.date + " period")
+                }
               }
             })
         }
