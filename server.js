@@ -272,3 +272,5 @@ db.sequelize.sync().then(function () {
 })
 
 sourceLoop();
+
+// speedup_functionality
