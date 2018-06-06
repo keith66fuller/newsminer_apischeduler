@@ -1,4 +1,4 @@
-var db = require("./models");
+const db = require("./models");
 const Sequelize = require("sequelize");
 const Op = Sequelize.Op;
 const moment = require("moment");
@@ -6,6 +6,26 @@ const todayOnly = moment().format('YYYY-MM-DD');
 const today = moment().format('YYYY-MM-DD 23:59:59');
 const util = require("util");
 const cTable = require('console.table');
+const PORT = process.env.PORT || 8081;
+const http = require("http");
+
+
+var server = http.createServer(function(request, response) {
+  response.writeHead(200, {"Content-Type": "text/html"});
+  response.write("<!DOCTYPE "html">");
+  response.write("<html>");
+  response.write("<head>");
+  response.write("<title>Hello World Page</title>");
+  response.write("</head>");
+  response.write("<body>");
+  response.write("Hello World!");
+  response.write("</body>");
+  response.write("</html>");
+  response.end();
+});
+
+server.listen(80);
+console.log("Server is listening");
 
 function updateApiCounter(obj1) {
   return new Promise((resolve, reject) => {
