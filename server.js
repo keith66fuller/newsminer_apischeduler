@@ -24,9 +24,6 @@ var server = http.createServer(function(request, response) {
   response.end();
 });
 
-server.listen(PORT);
-console.log("Server is listening");
-
 function updateApiCounter(obj1) {
   return new Promise((resolve, reject) => {
     obj1.obj.findOrCreate({
@@ -129,7 +126,7 @@ function updateSourceNewestTime(source, time) {
     })
 }
 
-function callApi(intervalObj, source, startAt, pageNum, dbSr) {
+function callApi(intervalObj, source, startAt, pageNum, dbBacklog) {
   startAt = moment(startAt).format("YYYY-MM-DD HH:mm:SS");
   var newStartAt = startAt;
   console.log("CALLAPI startAt: " + startAt)
@@ -152,7 +149,7 @@ function callApi(intervalObj, source, startAt, pageNum, dbSr) {
 
             if (pageNum == 1 && totalPages > 0) {
               console.log("FIRST PAGE FOR SOURCE")
-              db.SourceRetrieval.create({
+              db.Backlog.create({
                 source: source,
                 date: startAt,
                 totalArticles: response.totalResults,
@@ -161,17 +158,17 @@ function callApi(intervalObj, source, startAt, pageNum, dbSr) {
                 startAt: startAt
               })
                 .catch(err => {
-                  console.log("ERROR: Creating SourceRetrieval")
+                  console.log("ERROR: Creating Backlog")
                 })
-            } else if (dbSr) {
+            } else if (dbBacklog) {
               console.log("INCREMENTING PAGECOUNT FOR SOURCE")
-              dbSr.increment('pagesRetrieved', {
+              dbBacklog.increment('pagesRetrieved', {
                 by: 1
               })
                 .then(() => {
-                  if (dbSr.pagesRetrieved >= dbSr.totalPages) {
-                    console.log("DESTROYING SR")
-                    dbSr.destroy();
+                  if (dbBacklog.pagesRetrieved >= dbBacklog.totalPages) {
+                    console.log("Removing Backlog for "+db.Backlog.source)
+                    dbBacklog.destroy();
                     if (typeof response.articles[0] != 'undefined') {
                       console.log("UPDATING TIME TO " + response.articles[0].publishedAt)
                       updateSourceNewestTime(source, response.articles[0].publishedAt)
@@ -232,13 +229,13 @@ async function sourceLoop() {
         console.log("########################################################################################################")
         console.log("Querying Source " + dbSource.id + " " + sourceIdx + "/" + dbSources.length + " TODAY: " + now.format('YYYY-MM-DD') + " HOUR: " + now.format('YYYY-MM-DD HH:00:00') + " starting at  " + moment(startAt).toISOString())
         console.table(dbSource.dataValues);
-        db.SourceRetrieval.findOne({
+        db.Backlog.findOne({
           where: {
             source: dbSource.id
           }
         })
-          .then(dbSr => {
-            callApi(apiSchedulerInterval, dbSource.id, dbSr.startAt, dbSr.pagesRetrieved + 1, dbSr);
+          .then(dbBacklog => {
+            callApi(apiSchedulerInterval, dbSource.id, dbBacklog.startAt, dbBacklog.pagesRetrieved + 1, dbBacklog);
           })
           .catch(err => {
             callApi(apiSchedulerInterval, dbSource.id, startAt, 1);
@@ -258,5 +255,10 @@ async function sourceLoop() {
     throw err;
   }
 }
+
+db.sequelize.sync().then(function() {
+  server.listen(PORT);
+  console.log("Server is listening");
+  })
 
 sourceLoop();

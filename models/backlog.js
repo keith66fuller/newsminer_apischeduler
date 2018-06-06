@@ -1,5 +1,5 @@
 module.exports = function (sequelize, DataTypes) {
-  var SourceRetrieval = sequelize.define("SourceRetrieval", {
+  var Backlog = sequelize.define("Backlog", {
     source: {
       type: DataTypes.STRING
     },
@@ -19,5 +19,5 @@ module.exports = function (sequelize, DataTypes) {
     indexes: [ { unique: true, fields: [ 'source', 'date' ] } ]
   });
 
-  return SourceRetrieval;
+  return Backlog;
 };
