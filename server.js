@@ -219,7 +219,7 @@ async function sourceLoop() {
   try {
     await db.Source.findAll({
       order: [
-        ['oldest', 'ASC']
+        ['newest', 'ASC']
       ]
     }).then(function (dbSources) {
       let apiSchedulerInterval = setInterval(function (dbSources) {
