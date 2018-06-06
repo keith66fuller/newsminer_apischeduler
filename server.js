@@ -217,7 +217,7 @@ function callApi(intervalObj, source, startAt, pageNum, dbBacklog) {
     })
     .catch(err => {
       console.log(err)
-      clearInterval(intervalObj)
+      // clearInterval(intervalObj)
     })
 }
 
