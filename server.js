@@ -35,7 +35,7 @@ function updateApiCounter(obj1) {
     })
       .spread((obj, created) => {
         if (obj.exceeded) {
-          return reject("WARNING: " + obj1.handle + " call limit exceeded!")
+          return reject("WARNING: " + obj1.handle + " call limit exceeded!");
         } else {
           obj.increment('counter', {
             by: 1
@@ -44,28 +44,28 @@ function updateApiCounter(obj1) {
               if (obj.counter >= obj1.limit) {
                 obj.update({ exceeded: true })
                   .then(() => {
-                    return reject("WARNING: " + obj1.handle + " call limit exceeded!")
+                    return reject("WARNING: " + obj1.handle + " call limit exceeded!");
                   });
               } else {
                 if (obj.qPeriod) {
                   let now = moment().utc();
                   let period = moment(obj.qPeriod ? obj.qPeriod : obj.date).utc();
-                  let counter = parseInt(obj.counter)
+                  let counter = parseInt(obj.counter);
                   // console.log("NOW: " + now)
                   // console.log("PERIOD: " + period)
                   // console.log("DIFF: " + Math.floor(now.diff(period) / 1000))
                   // console.log("Calls remaining: " + (250 - counter))
                   console.log("New interval: " + Math.floor(Math.floor(now.diff(period) / 1000) / (250 - counter)) + " seconds between calls");
-                  resolve((created ? "New" : "Existing") + " API " + obj1.handle + " call counter for " + obj1.temporal + " is " + obj.counter + " with " + 1 + " seconds remaining in the " + obj.qPeriod + " period")
+                  resolve((created ? "New" : "Existing") + " API " + obj1.handle + " call counter for " + obj1.temporal + " is " + obj.counter + " with " + 1 + " seconds remaining in the " + obj.qPeriod + " period");
                 } else {
-                  let t = moment.duration(moment(moment()).utc().diff(obj.date))
-                  resolve((created ? "New" : "Existing") + " API " + obj1.handle + " call counter for " + obj1.temporal + " is " + obj.counter + " with " + t + " seconds remaining in the " + obj.date + " period")
+                  let t = moment.duration(moment(moment()).utc().diff(obj.date));
+                  resolve((created ? "New" : "Existing") + " API " + obj1.handle + " call counter for " + obj1.temporal + " is " + obj.counter + " with " + t + " seconds remaining in the " + obj.date + " period");
                 }
               }
-            })
+            });
         }
-      })
-  })
+      });
+  });
 }
 
 function updateApiCounters(intervalObj) {
@@ -76,7 +76,7 @@ function updateApiCounters(intervalObj) {
     const dayStart = moment().utc().startOf('day');
     let q1 = moment().utc().diff(dayStart, 's');
     const qPeriod = dayStart.add(q1 - q1 % 21600, 's').toISOString();
-    console.log("QPERIOD: " + qPeriod)
+    console.log("QPERIOD: " + qPeriod);
     errFlag = false;
 
     var p1 = await updateApiCounter({
@@ -90,11 +90,11 @@ function updateApiCounters(intervalObj) {
     })
       .catch(err => {
         console.log(err);
-        errFlag = true
+        errFlag = true;
       })
       .then(data => {
-        console.log(data)
-      })
+        console.log(data);
+      });
 
 
     var p2 = await updateApiCounter({
@@ -108,7 +108,7 @@ function updateApiCounters(intervalObj) {
     })
       .catch(err => {
         console.log(err);
-        errFlag = true
+        errFlag = true;
       })
       .then(data => {
         console.log(data)
@@ -157,10 +157,8 @@ function callApi(intervalObj, source, startAt, pageNum, dbBacklog) {
           // console.log("API response: "+JSON.stringify(response, null, 2))
           if (response.status == "ok" && response.totalResults) {
             var totalPages = Math.floor(response.totalResults / 100)
-            console.log("SOURCE: " + source + " PAGE: " + pageNum + " TOTAL RESULTS: " + response.totalResults + " -- " + totalPages + " more requests are needed.");
-
             if (pageNum == 1 && totalPages > 0) {
-              console.log("FIRST PAGE FOR SOURCE")
+              console.log("SOURCE: " + source + " PAGE: " + pageNum + " TOTAL RESULTS: " + response.totalResults + " -- " + totalPages + " more requests are needed.");
               db.Backlog.create({
                 source: source,
                 date: startAt,
@@ -170,10 +168,10 @@ function callApi(intervalObj, source, startAt, pageNum, dbBacklog) {
                 startAt: startAt
               })
                 .catch(err => {
-                  console.log("ERROR: Creating Backlog")
+                  console.log("ERROR: Creating Backlog "+err)
                 })
             } else if (dbBacklog) {
-              console.log("INCREMENTING PAGECOUNT FOR SOURCE")
+              console.log("SOURCE: " + source + " PAGE: " + pageNum + " TOTAL RESULTS: " + response.totalResults + " -- " + dbBacklog.totalPages+"/"+totalPages + " pages retrieved.");
               dbBacklog.increment('pagesRetrieved', {
                 by: 1
               })
@@ -186,12 +184,12 @@ function callApi(intervalObj, source, startAt, pageNum, dbBacklog) {
                       updateSourceNewestTime(source, response.articles[0].publishedAt)
                     }
                   }
-                })
+                });
             }
             if (typeof response.articles[0] != 'undefined') {
               (response.articles).forEach(article => {
-                article.SourceId = article.source.id
-                article.source = article.source.id
+                article.SourceId = article.source.id;
+                article.source = article.source.id;
                 db.Article.create(article)
                   .then(() => {
                     // console.log("TEST " + article.publishedAt + " " + newStartAt + " " + article.title)
