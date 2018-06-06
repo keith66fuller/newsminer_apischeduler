@@ -1,6 +1,6 @@
 {
-  "name": "NUCBC Project 2",
-  "description": "All Your Base Are Belong To Us",
+  "name": "NewsMiner API Scheduler",
+  "description": "Call newsAPI and update the database with articles, spreading out the API calls",
   "scripts": {
   },
   "env": {
