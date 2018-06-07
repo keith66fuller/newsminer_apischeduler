@@ -1,16 +1,12 @@
+const async = require('async');
 const db = require("./models");
-const Sequelize = require("sequelize");
-const Op = Sequelize.Op;
 const moment = require("moment");
-const todayOnly = moment().format('YYYY-MM-DD');
-const today = moment().format('YYYY-MM-DD 23:59:59');
-const util = require("util");
-const cTable = require('console.table');
 const PORT = process.env.PORT || 8081;
 const http = require("http");
 
 
 var server = http.createServer(function (request, response) {
+  "use strict";
   response.writeHead(200, { "Content-Type": "text/html" });
   response.write("<!DOCTYPE \"html\">");
   response.write("<html>");
@@ -25,6 +21,7 @@ var server = http.createServer(function (request, response) {
 });
 
 function updateApiCounter(obj1) {
+  "use strict";
   return new Promise((resolve, reject) => {
     obj1.obj.findOrCreate({
       where: obj1.where,
@@ -71,15 +68,16 @@ function updateApiCounter(obj1) {
 function updateApiCounters(intervalObj) {
   // Update the API call counter in DB
   // If we reach hourly (250) or daily (1000) api call limits, cancel the setInterval
+  "use strict";
   return new Promise(async function (resolve, reject) {
     const today = moment().utc().format('YYYY-MM-DD');
     const dayStart = moment().utc().startOf('day');
     let q1 = moment().utc().diff(dayStart, 's');
     const qPeriod = dayStart.add(q1 - q1 % 21600, 's').toISOString();
     console.log("QPERIOD: " + qPeriod);
-    errFlag = false;
+    let errFlag = false;
 
-    var p1 = await updateApiCounter({
+    await updateApiCounter({
       obj: db.ApiCounterQ,
       temporal: qPeriod,
       where: {
@@ -97,7 +95,7 @@ function updateApiCounters(intervalObj) {
       });
 
 
-    var p2 = await updateApiCounter({
+    await updateApiCounter({
       obj: db.ApiCounterD,
       temporal: today,
       where: {
@@ -111,18 +109,19 @@ function updateApiCounters(intervalObj) {
         errFlag = true;
       })
       .then(data => {
-        console.log(data)
-      })
+        console.log(data);
+      });
 
     if (!errFlag) {
-      resolve()
+      resolve();
     } else {
-      return reject("WARNING: One or more api counters exceeded!")
+      return reject("WARNING: One or more api counters exceeded!");
     }
-  })
+  });
 }
 
 function updateSourceNewestTime(source, time) {
+  "use strict";
   db.Source.update({
     newest: time
   }, {
@@ -131,17 +130,18 @@ function updateSourceNewestTime(source, time) {
       }
     })
     .then((dbSource) => {
-      console.log("New newest for " + source + " : " + time)
+      console.log("New newest for " + source + " : " + time);
     })
     .catch(err => {
-      console.log("ERROR updating source " + source + ": " + err)
-    })
+      console.log("ERROR updating source " + source + ": " + err);
+    });
 }
 
 function callApi(intervalObj, source, startAt, pageNum, dbBacklog) {
+  "use strict";
   startAt = moment(startAt).format("YYYY-MM-DD HH:mm:SS");
   var newStartAt = startAt;
-  console.log("CALLAPI startAt: " + startAt)
+  console.log("CALLAPI startAt: " + startAt);
   updateApiCounters(intervalObj)
     .then(() => {
       if (process.env.APISCHEDULER == "true") {
@@ -156,7 +156,7 @@ function callApi(intervalObj, source, startAt, pageNum, dbBacklog) {
         }).then(response => {
           // console.log("API response: "+JSON.stringify(response, null, 2))
           if (response.status == "ok" && response.totalResults) {
-            var totalPages = Math.floor(response.totalResults / 100)
+            var totalPages = Math.floor(response.totalResults / 100);
             if (pageNum == 1 && totalPages > 0) {
               console.log("SOURCE: " + source + " PAGE: " + pageNum + " TOTAL RESULTS: " + response.totalResults + " -- " + totalPages + " more requests are needed.");
               db.Backlog.create({
@@ -168,8 +168,8 @@ function callApi(intervalObj, source, startAt, pageNum, dbBacklog) {
                 startAt: startAt
               })
                 .catch(err => {
-                  console.log("ERROR: Creating Backlog "+err)
-                })
+                  console.log("ERROR: Creating Backlog "+err);
+                });
             } else if (dbBacklog) {
               console.log("SOURCE: " + source + " PAGE: " + pageNum + " TOTAL RESULTS: " + response.totalResults + " -- " + dbBacklog.totalPages+"/"+totalPages + " pages retrieved.");
               dbBacklog.increment('pagesRetrieved', {
@@ -177,11 +177,11 @@ function callApi(intervalObj, source, startAt, pageNum, dbBacklog) {
               })
                 .then(() => {
                   if (dbBacklog.pagesRetrieved >= dbBacklog.totalPages) {
-                    console.log("Removing Backlog for " + db.Backlog.source)
+                    console.log("Removing Backlog for " + db.Backlog.source);
                     dbBacklog.destroy();
                     if (typeof response.articles[0] != 'undefined') {
-                      console.log("UPDATING TIME TO " + response.articles[0].publishedAt)
-                      updateSourceNewestTime(source, response.articles[0].publishedAt)
+                      console.log("UPDATING TIME TO " + response.articles[0].publishedAt);
+                      updateSourceNewestTime(source, response.articles[0].publishedAt);
                     }
                   }
                 });
@@ -193,38 +193,39 @@ function callApi(intervalObj, source, startAt, pageNum, dbBacklog) {
                 db.Article.create(article)
                   .then(() => {
                     // console.log("TEST " + article.publishedAt + " " + newStartAt + " " + article.title)
-                    console.log("ADDED: " + article.publishedAt, article.title)
+                    console.log("ADDED: " + article.publishedAt, article.title);
                     if (moment(article.publishedAt).isSameOrAfter(startAt) && moment(article.publishedAt).isSameOrAfter(newStartAt)) {
                       newStartAt = article.publishedAt;
-                      updateSourceNewestTime(source, newStartAt)
+                      updateSourceNewestTime(source, newStartAt);
                     }
                   })
                   .catch(error => {
                     // These are validation errors because the row already exists.
                     // console.log("ERROR: "+error+" " + article.publishedAt, article.title)
-                  })
+                  });
               });
             } else {
-              console.log("Response articles is UNDEFINED")
+              console.log("Response articles is UNDEFINED");
             }
           } else {
             console.log("BAD response to api call ==> " + JSON.stringify(response, null, 2));
           }
-        })
+        });
       }
     })
     .catch(err => {
-      console.log(err)
+      console.log(err);
       // clearInterval(intervalObj)
     })
 }
 
 if (process.env.APISCHEDULER == "true") {
-  console.log("Api scheduler will run at " + process.env.API_INTERVAL + " ms intervals")
+  console.log("Api scheduler will run at " + process.env.API_INTERVAL + " ms intervals");
 }
 
 async function sourceLoop() {
-  console.log("#################### Starting loop through sources by oldest updated.")
+  "use strict";
+  console.log("#################### Starting loop through sources by oldest updated.");
   let sourceIdx = 0;
   try {
     await db.Source.findAll({
@@ -233,11 +234,11 @@ async function sourceLoop() {
       ]
     }).then(function (dbSources) {
       let apiSchedulerInterval = setInterval(function (dbSources) {
-        const now = moment().utc()
-        let dbSource = dbSources[sourceIdx]
-        let startAt = dbSource.newest
-        console.log("########################################################################################################")
-        console.log("Querying Source " + dbSource.id + " " + sourceIdx + "/" + dbSources.length + " TODAY: " + now.format('YYYY-MM-DD') + " HOUR: " + now.format('YYYY-MM-DD HH:00:00') + " starting at  " + moment(startAt).toISOString())
+        const now = moment().utc();
+        let dbSource = dbSources[sourceIdx];
+        let startAt = dbSource.newest;
+        console.log("########################################################################################################");
+        console.log("Querying Source " + dbSource.id + " " + sourceIdx + "/" + dbSources.length + " TODAY: " + now.format('YYYY-MM-DD') + " HOUR: " + now.format('YYYY-MM-DD HH:00:00') + " starting at  " + moment(startAt).toISOString());
         console.table(dbSource.dataValues);
         db.Backlog.findOne({
           where: {
@@ -258,8 +259,8 @@ async function sourceLoop() {
               sourceIdx = 0;
               console.log(dbSource.id + "=================================== Done with all sources");
             }
-          })
-      }, process.env.API_INTERVAL, dbSources)
+          });
+      }, process.env.API_INTERVAL, dbSources);
     });
   } catch (err) {
     throw err;
@@ -267,6 +268,7 @@ async function sourceLoop() {
 }
 
 db.sequelize.sync().then(function () {
+  "use strict";
   server.listen(PORT);
   console.log("Server is listening");
 })
