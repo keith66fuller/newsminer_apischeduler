@@ -9,6 +9,7 @@ const cTable = require('console.table');
 const PORT = process.env.PORT || 8081;
 const http = require("http");
 
+var API_INTERVAL = process.env.API_INTERVAL;
 
 var server = http.createServer(function (request, response) {
   response.writeHead(200, { "Content-Type": "text/html" });
@@ -24,7 +25,7 @@ var server = http.createServer(function (request, response) {
   response.end();
 });
 
-function updateApiCounter(obj1) {
+function updateApiCounter(interval, obj1) {
   return new Promise((resolve, reject) => {
     obj1.obj.findOrCreate({
       where: obj1.where,
@@ -51,12 +52,25 @@ function updateApiCounter(obj1) {
                   let now = moment().utc();
                   let period = moment(obj.qPeriod ? obj.qPeriod : obj.date).utc();
                   let counter = parseInt(obj.counter);
-                  // console.log("NOW: " + now)
-                  // console.log("PERIOD: " + period)
-                  // console.log("DIFF: " + Math.floor(now.diff(period) / 1000))
-                  // console.log("Calls remaining: " + (250 - counter))
-                  console.log("New interval: " + Math.floor(Math.floor(now.diff(period) / 1000) / (250 - counter)) + " seconds between calls");
-                  resolve((created ? "New" : "Existing") + " API " + obj1.handle + " call counter for " + obj1.temporal + " is " + obj.counter + " with " + 1 + " seconds remaining in the " + obj.qPeriod + " period");
+                  console.log("NOW: " + now)
+                  console.log("PERIOD: " + period)
+                  console.log("DIFF: " + Math.floor(now.diff(period) / 1000))
+                  console.log("Calls remaining: " + (250 - counter))
+                  let newInterval = Math.floor(Math.floor(now.diff(period)) / (250 - counter));
+                  let newIntervalS = Math.floor(newInterval/1000);
+                  let intervalDiff = parseInt(API_INTERVAL)-newInterval;
+
+                  
+                  if (newIntervalS >= 1) {
+                    console.log("Old interval "+API_INTERVAL+" New interval: " + newIntervalS + " seconds between calls.  Need to "+((intervalDiff>0)?"speed up":"slow down")+" by "+Math.abs(intervalDiff)+" milliseconds.");
+                    API_INTERVAL = newInterval
+                    console.log("New interval "+API_INTERVAL);
+                    clearInterval(interval)
+                  }
+                  
+                  
+                  let t = moment.duration(moment(moment()).utc().diff(obj.qPeriod));
+                  resolve((created ? "New" : "Existing") + " API " + obj1.handle + " call counter for " + obj1.temporal + " is " + obj.counter + " with " + t + " seconds remaining in the " + obj.qPeriod + " period");
                 } else {
                   let t = moment.duration(moment(moment()).utc().diff(obj.date));
                   resolve((created ? "New" : "Existing") + " API " + obj1.handle + " call counter for " + obj1.temporal + " is " + obj.counter + " with " + t + " seconds remaining in the " + obj.date + " period");
@@ -79,7 +93,7 @@ function updateApiCounters(intervalObj) {
     console.log("QPERIOD: " + qPeriod);
     errFlag = false;
 
-    var p1 = await updateApiCounter({
+    var p1 = await updateApiCounter(intervalObj, {
       obj: db.ApiCounterQ,
       temporal: qPeriod,
       where: {
@@ -97,7 +111,7 @@ function updateApiCounters(intervalObj) {
       });
 
 
-    var p2 = await updateApiCounter({
+    var p2 = await updateApiCounter(intervalObj, {
       obj: db.ApiCounterD,
       temporal: today,
       where: {
@@ -220,7 +234,7 @@ function callApi(intervalObj, source, startAt, pageNum, dbBacklog) {
 }
 
 if (process.env.APISCHEDULER == "true") {
-  console.log("Api scheduler will run at " + process.env.API_INTERVAL + " ms intervals")
+  console.log("Api scheduler will run at " + API_INTERVAL + " ms intervals")
 }
 
 async function sourceLoop() {
@@ -259,7 +273,7 @@ async function sourceLoop() {
               console.log(dbSource.id + "=================================== Done with all sources");
             }
           })
-      }, process.env.API_INTERVAL, dbSources)
+      }, API_INTERVAL, dbSources)
     });
   } catch (err) {
     throw err;
