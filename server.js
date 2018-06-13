@@ -26,7 +26,20 @@ var server = http.createServer(function (request, response) {
   response.end();
 });
 
-function updateApiCounter(obj1) {
+function updateApiCounter() {
+  const today = moment().utc().format('YYYY-MM-DD');
+  const dayStart = moment().utc().startOf('day');
+  let q1 = moment().utc().diff(dayStart, 's');
+  const qPeriod = dayStart.add(q1 - q1 % 21600, 's').toISOString();
+  let obj1 = {
+    obj: db.ApiCounterQ,
+    temporal: qPeriod,
+    where: {
+      qPeriod: qPeriod
+    },
+    limit: 250,
+    handle: "6 Hoursly"
+  };
   return new Promise((resolve, reject) => {
     obj1.obj.findOrCreate({
       where: obj1.where,
@@ -92,48 +105,16 @@ function updateApiCounters() {
     let q1 = moment().utc().diff(dayStart, 's');
     const qPeriod = dayStart.add(q1 - q1 % 21600, 's').toISOString();
     console.log("QPERIOD: " + qPeriod);
-    errFlag = false;
 
-    var p1 = await updateApiCounter({
-      obj: db.ApiCounterQ,
-      temporal: qPeriod,
-      where: {
-        qPeriod: qPeriod
-      },
-      limit: 250,
-      handle: "6 Hoursly"
-    })
+    var p1 = await updateApiCounter()
       .catch(err => {
         console.log(err);
-        errFlag = true;
+        return reject("WARNING: One or more api counters exceeded!")
       })
       .then(data => {
         console.log(data);
+        resolve();
       });
-
-
-    var p2 = await updateApiCounter({
-      obj: db.ApiCounterD,
-      temporal: today,
-      where: {
-        date: today
-      },
-      limit: 1000,
-      handle: "Daily"
-    })
-      .catch(err => {
-        console.log(err);
-        errFlag = true;
-      })
-      .then(data => {
-        console.log(data)
-      })
-
-    if (!errFlag) {
-      resolve()
-    } else {
-      return reject("WARNING: One or more api counters exceeded!")
-    }
   })
 }
 
@@ -151,7 +132,7 @@ function callApi(dbSource, startAt, pageNum, dbBacklog) {
   startAt = moment(startAt).format("YYYY-MM-DD HH:mm:SS");
   var newStartAt = startAt;
   console.log("CALLAPI startAt: " + startAt)
-  updateApiCounters()
+  updateApiCounter()
     .then(() => {
       if (process.env.APISCHEDULER == "true") {
         const NewsAPI = require('newsapi');
@@ -226,8 +207,9 @@ function callApi(dbSource, startAt, pageNum, dbBacklog) {
           //    maximumResultsReached: You have requested too many results. Developer accounts are limited to a max of 100 results. Please upgrade to a paid plan if you need more results.
           // then change newest to one day ago.
           if (JSON.stringify(err).match('maximumResultsReached')) {
-            console.log(`Original startAt: ${startAt}`)
-            dbSource.update({ newest: moment().subtract(1,'day').format("YYYY-MM-DD HH:mm:SS")})
+            newStartAt = moment().subtract(1,'day').format("YYYY-MM-DD HH:mm:SS")
+            console.log(`Original startAt: ${startAt}  New startAt: ${newStartAt}`)
+            dbSource.update({ newest: newStartAt})
           }
         })
       }
