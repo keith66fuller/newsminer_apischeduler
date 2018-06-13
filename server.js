@@ -58,18 +58,18 @@ function updateApiCounter(interval, obj1) {
                   console.log("DIFF: " + Math.floor(now.diff(period) / 1000))
                   console.log("Calls remaining: " + (250 - counter))
                   let newInterval = Math.floor(Math.floor(now.diff(period)) / (250 - counter));
-                  let newIntervalS = Math.floor(newInterval/1000);
-                  let intervalDiff = parseInt(API_INTERVAL)-newInterval;
+                  let newIntervalS = Math.floor(newInterval / 1000);
+                  let intervalDiff = parseInt(API_INTERVAL) - newInterval;
 
-                  
+
                   if (newIntervalS >= 1) {
-                    console.log("Old interval "+API_INTERVAL+" New interval: " + newIntervalS + " seconds between calls.  Need to "+((intervalDiff>0)?"speed up":"slow down")+" by "+Math.abs(intervalDiff)+" milliseconds.");
+                    console.log("Old interval " + API_INTERVAL + " New interval: " + newIntervalS + " seconds between calls.  Need to " + ((intervalDiff > 0) ? "speed up" : "slow down") + " by " + Math.abs(intervalDiff) + " milliseconds.");
                     API_INTERVAL = newInterval
-                    console.log("New interval "+API_INTERVAL);
+                    console.log("New interval " + API_INTERVAL);
                     clearInterval(interval)
                   }
-                  
-                  
+
+
                   let t = moment.duration(moment(moment()).utc().diff(obj.qPeriod));
                   resolve((created ? "New" : "Existing") + " API " + obj1.handle + " call counter for " + obj1.temporal + " is " + obj.counter + " with " + t + " seconds remaining in the " + obj.qPeriod + " period");
                 } else {
@@ -83,7 +83,7 @@ function updateApiCounter(interval, obj1) {
   });
 }
 
-function updateApiCounters(intervalObj) {
+function updateApiCounters() {
   // Update the API call counter in DB
   // If we reach hourly (250) or daily (1000) api call limits, cancel the setInterval
   return new Promise(async function (resolve, reject) {
@@ -94,7 +94,7 @@ function updateApiCounters(intervalObj) {
     console.log("QPERIOD: " + qPeriod);
     errFlag = false;
 
-    var p1 = await updateApiCounter(intervalObj, {
+    var p1 = await updateApiCounter({
       obj: db.ApiCounterQ,
       temporal: qPeriod,
       where: {
@@ -112,7 +112,7 @@ function updateApiCounters(intervalObj) {
       });
 
 
-    var p2 = await updateApiCounter(intervalObj, {
+    var p2 = await updateApiCounter({
       obj: db.ApiCounterD,
       temporal: today,
       where: {
@@ -153,11 +153,11 @@ function updateSourceNewestTime(source, time) {
     })
 }
 
-function callApi(intervalObj, source, startAt, pageNum, dbBacklog) {
+function callApi(source, startAt, pageNum, dbBacklog) {
   startAt = moment(startAt).format("YYYY-MM-DD HH:mm:SS");
   var newStartAt = startAt;
   console.log("CALLAPI startAt: " + startAt)
-  updateApiCounters(intervalObj)
+  updateApiCounters()
     .then(() => {
       if (process.env.APISCHEDULER == "true") {
         const NewsAPI = require('newsapi');
@@ -183,10 +183,10 @@ function callApi(intervalObj, source, startAt, pageNum, dbBacklog) {
                 startAt: startAt
               })
                 .catch(err => {
-                  console.log("ERROR: Creating Backlog "+err)
+                  console.log("ERROR: Creating Backlog " + err)
                 })
             } else if (dbBacklog) {
-              console.log("SOURCE: " + source + " PAGE: " + pageNum + " TOTAL RESULTS: " + response.totalResults + " -- " + dbBacklog.totalPages+"/"+totalPages + " pages retrieved.");
+              console.log("SOURCE: " + source + " PAGE: " + pageNum + " TOTAL RESULTS: " + response.totalResults + " -- " + dbBacklog.totalPages + "/" + totalPages + " pages retrieved.");
               dbBacklog.increment('pagesRetrieved', {
                 by: 1
               })
@@ -246,35 +246,36 @@ async function sourceLoop() {
       order: [
         ['newest', 'ASC']
       ]
-    }).then(function (dbSources) {
-      let apiSchedulerInterval = setInterval(function (dbSources) {
-        const now = moment().utc()
-        let dbSource = dbSources[sourceIdx]
-        let startAt = dbSource.newest
-        console.log("########################################################################################################")
-        console.log("Querying Source " + dbSource.id + " " + sourceIdx + "/" + dbSources.length + " TODAY: " + now.format('YYYY-MM-DD') + " HOUR: " + now.format('YYYY-MM-DD HH:00:00') + " starting at  " + moment(startAt).toISOString())
-        console.table(dbSource.dataValues);
-        db.Backlog.findOne({
-          where: {
-            source: dbSource.id
+    }).then(async function (dbSources) {
+      const now = moment().utc()
+      let dbSource = dbSources[sourceIdx]
+      let startAt = dbSource.newest
+      console.log("########################################################################################################")
+      console.log("Querying Source " + dbSource.id + " " + sourceIdx + "/" + dbSources.length + " TODAY: " + now.format('YYYY-MM-DD') + " HOUR: " + now.format('YYYY-MM-DD HH:00:00') + " starting at  " + moment(startAt).toISOString())
+      console.table(dbSource.dataValues);
+      db.Backlog.findOne({
+        where: {
+          source: dbSource.id
+        }
+      })
+        .then(dbBacklog => {
+          callApi(dbSource.id, dbBacklog.startAt, dbBacklog.pagesRetrieved + 1, dbBacklog);
+        })
+        .catch(err => {
+          callApi(dbSource.id, startAt, 1);
+        })
+        .then(() => {
+          if (sourceIdx < dbSources.length - 1) {
+            sourceIdx++;
+            console.log("Go to next source");
+          } else {
+            sourceIdx = 0;
+            console.log(dbSource.id + "=================================== Done with all sources");
           }
         })
-          .then(dbBacklog => {
-            callApi(apiSchedulerInterval, dbSource.id, dbBacklog.startAt, dbBacklog.pagesRetrieved + 1, dbBacklog);
-          })
-          .catch(err => {
-            callApi(apiSchedulerInterval, dbSource.id, startAt, 1);
-          })
-          .then(() => {
-            if (sourceIdx < dbSources.length - 1) {
-              sourceIdx++;
-              console.log("Go to next source");
-            } else {
-              sourceIdx = 0;
-              console.log(dbSource.id + "=================================== Done with all sources");
-            }
-          })
-      }, API_INTERVAL, dbSources)
+      let apiSchedulerInterval = await setTimeout(function () {
+        console.log(`Completed processing source ${dbSource.id}`)
+      }, API_INTERVAL)
     });
   } catch (err) {
     throw err;
