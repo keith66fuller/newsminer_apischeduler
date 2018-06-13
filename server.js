@@ -242,47 +242,49 @@ if (process.env.APISCHEDULER == "true") {
   console.log("Api scheduler will run at " + API_INTERVAL + " ms intervals")
 }
 
-async function sourceLoop() {
+function procSources(dbSources) {
+  const now = moment().utc()
+  let dbSource = dbSources[sourceIdx]
+  let startAt = dbSource.newest
+  console.log("########################################################################################################")
+  console.log("Querying Source " + dbSource.id + " " + sourceIdx + "/" + dbSources.length + " TODAY: " + now.format('YYYY-MM-DD') + " HOUR: " + now.format('YYYY-MM-DD HH:00:00') + " starting at  " + moment(startAt).toISOString())
+  console.table(dbSource.dataValues);
+  db.Backlog.findOne({
+    where: {
+      source: dbSource.id
+    }
+  })
+    .then(dbBacklog => {
+      callApi(dbSource, dbBacklog.startAt, dbBacklog.pagesRetrieved + 1, dbBacklog);
+    })
+    .catch(err => {
+      console.log('Error occured reading backlog -> '+JSON.stringify(err, null, 2));
+      callApi(dbSource, startAt, 1);
+    })
+    .then(() => {
+      let apiSchedulerInterval = setTimeout(function () {
+        if (sourceIdx < dbSources.length - 1) {
+          sourceIdx++;
+          console.log("Go to next source");
+        } else {
+          sourceIdx = 0;
+          console.log(dbSource.id + "=================================== Done with all sources");
+        }
+        console.log(`Completed processing source ${dbSource.id}.  Interval is ${API_INTERVAL}.`)
+        procSources(dbSources)
+      }, API_INTERVAL)
+
+    })
+};
+
+function sourceLoop() {
   console.log("#################### Starting loop through sources by oldest updated.")
-  let sourceIdx = 0;
   try {
-    await db.Source.findAll({
+    db.Source.findAll({
       order: [
         ['newest', 'ASC']
       ]
-    }).then(function (dbSources) {
-      const now = moment().utc()
-      let dbSource = dbSources[sourceIdx]
-      let startAt = dbSource.newest
-      console.log("########################################################################################################")
-      console.log("Querying Source " + dbSource.id + " " + sourceIdx + "/" + dbSources.length + " TODAY: " + now.format('YYYY-MM-DD') + " HOUR: " + now.format('YYYY-MM-DD HH:00:00') + " starting at  " + moment(startAt).toISOString())
-      console.table(dbSource.dataValues);
-      db.Backlog.findOne({
-        where: {
-          source: dbSource.id
-        }
-      })
-        .then(dbBacklog => {
-          callApi(dbSource, dbBacklog.startAt, dbBacklog.pagesRetrieved + 1, dbBacklog);
-        })
-        .catch(err => {
-          console.log('Error occured reading backlog -> '+JSON.stringify(err, null, 2));
-          callApi(dbSource, startAt, 1);
-        })
-        .then(() => {
-          let apiSchedulerInterval = setTimeout(function () {
-            if (sourceIdx < dbSources.length - 1) {
-              sourceIdx++;
-              console.log("Go to next source");
-            } else {
-              sourceIdx = 0;
-              console.log(dbSource.id + "=================================== Done with all sources");
-            }
-            console.log(`Completed processing source ${dbSource.id}.  Interval is ${API_INTERVAL}.`)
-          }, API_INTERVAL)
-
-        })
-    });
+    }).then(dbSources => { procSources(dbSources) });
   } catch (err) {
     throw err;
   }
@@ -293,6 +295,7 @@ db.sequelize.sync().then(function () {
   console.log("Server is listening");
 })
 
+let sourceIdx = 0;
 sourceLoop();
 
 // speedup_functionality
