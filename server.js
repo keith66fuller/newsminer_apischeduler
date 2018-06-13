@@ -26,7 +26,7 @@ var server = http.createServer(function (request, response) {
   response.end();
 });
 
-function updateApiCounter(interval, obj1) {
+function updateApiCounter(obj1) {
   return new Promise((resolve, reject) => {
     obj1.obj.findOrCreate({
       where: obj1.where,
@@ -53,11 +53,12 @@ function updateApiCounter(interval, obj1) {
                   let now = moment().utc();
                   let period = moment(obj.qPeriod ? obj.qPeriod : obj.date).utc();
                   let counter = parseInt(obj.counter);
-                  console.log("NOW: " + now)
+                  console.log("NOW   : " + now)
                   console.log("PERIOD: " + period)
-                  console.log("DIFF: " + Math.floor(now.diff(period) / 1000))
+                  console.log("DIFF  : " + Math.floor(now.diff(period)))
                   console.log("Calls remaining: " + (250 - counter))
                   let newInterval = Math.floor(Math.floor(now.diff(period)) / (250 - counter));
+                  newInterval = (newInterval >= 14000) ? newInterval : 14000
                   let newIntervalS = Math.floor(newInterval / 1000);
                   let intervalDiff = parseInt(API_INTERVAL) - newInterval;
 
@@ -66,7 +67,6 @@ function updateApiCounter(interval, obj1) {
                     console.log("Old interval " + API_INTERVAL + " New interval: " + newIntervalS + " seconds between calls.  Need to " + ((intervalDiff > 0) ? "speed up" : "slow down") + " by " + Math.abs(intervalDiff) + " milliseconds.");
                     API_INTERVAL = newInterval
                     console.log("New interval " + API_INTERVAL);
-                    clearInterval(interval)
                   }
 
 
@@ -186,7 +186,7 @@ function callApi(source, startAt, pageNum, dbBacklog) {
                   console.log("ERROR: Creating Backlog " + err)
                 })
             } else if (dbBacklog) {
-              console.log("SOURCE: " + source + " PAGE: " + pageNum + " TOTAL RESULTS: " + response.totalResults + " -- " + dbBacklog.totalPages + "/" + totalPages + " pages retrieved.");
+              console.log("SOURCE: " + source + " PAGE: " + pageNum + " TOTAL RESULTS: " + response.totalResults + " -- " + dbBacklog.pagesRetrieved + "/" + totalPages + " pages retrieved.");
               dbBacklog.increment('pagesRetrieved', {
                 by: 1
               })
@@ -246,7 +246,7 @@ async function sourceLoop() {
       order: [
         ['newest', 'ASC']
       ]
-    }).then(async function (dbSources) {
+    }).then(function (dbSources) {
       const now = moment().utc()
       let dbSource = dbSources[sourceIdx]
       let startAt = dbSource.newest
@@ -265,17 +265,18 @@ async function sourceLoop() {
           callApi(dbSource.id, startAt, 1);
         })
         .then(() => {
-          if (sourceIdx < dbSources.length - 1) {
-            sourceIdx++;
-            console.log("Go to next source");
-          } else {
-            sourceIdx = 0;
-            console.log(dbSource.id + "=================================== Done with all sources");
-          }
+          let apiSchedulerInterval = setTimeout(function () {
+            if (sourceIdx < dbSources.length - 1) {
+              sourceIdx++;
+              console.log("Go to next source");
+            } else {
+              sourceIdx = 0;
+              console.log(dbSource.id + "=================================== Done with all sources");
+            }
+            console.log(`Completed processing source ${dbSource.id}.  Interval is ${API_INTERVAL}.`)
+          }, API_INTERVAL)
+
         })
-      let apiSchedulerInterval = await setTimeout(function () {
-        console.log(`Completed processing source ${dbSource.id}`)
-      }, API_INTERVAL)
     });
   } catch (err) {
     throw err;
