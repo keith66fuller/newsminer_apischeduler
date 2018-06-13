@@ -1,3 +1,4 @@
+require('dotenv').config();
 const db = require("./models");
 const Sequelize = require("sequelize");
 const Op = Sequelize.Op;
