@@ -64,3 +64,4 @@ typings/
 #config/config.json
 setenvars.sh
 db/split/
+localenv.sh
