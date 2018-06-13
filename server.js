@@ -137,23 +137,17 @@ function updateApiCounters() {
   })
 }
 
-function updateSourceNewestTime(source, time) {
-  db.Source.update({
-    newest: time
-  }, {
-      where: {
-        id: source
-      }
-    })
+function updateSourceNewestTime(dbSource, time) {
+  dbSource.update({ newest: time })
     .then((dbSource) => {
-      console.log("New newest for " + source + " : " + time)
+      console.log("New newest for " + dbSource.id + " : " + time)
     })
     .catch(err => {
-      console.log("ERROR updating source " + source + ": " + err)
+      console.log("ERROR updating source " + dbSource.id + ": " + err)
     })
 }
 
-function callApi(source, startAt, pageNum, dbBacklog) {
+function callApi(dbSource, startAt, pageNum, dbBacklog) {
   startAt = moment(startAt).format("YYYY-MM-DD HH:mm:SS");
   var newStartAt = startAt;
   console.log("CALLAPI startAt: " + startAt)
@@ -163,7 +157,7 @@ function callApi(source, startAt, pageNum, dbBacklog) {
         const NewsAPI = require('newsapi');
         const newsapi = new NewsAPI(process.env.NEWSAPIKEY);
         newsapi.v2.everything({
-          sources: source,
+          sources: dbSource.id,
           pageSize: 100,
           page: pageNum,
           from: startAt,
@@ -173,9 +167,9 @@ function callApi(source, startAt, pageNum, dbBacklog) {
           if (response.status == "ok" && response.totalResults) {
             var totalPages = Math.floor(response.totalResults / 100)
             if (pageNum == 1 && totalPages > 0) {
-              console.log("SOURCE: " + source + " PAGE: " + pageNum + " TOTAL RESULTS: " + response.totalResults + " -- " + totalPages + " more requests are needed.");
+              console.log("SOURCE: " + dbSource.id + " PAGE: " + pageNum + " TOTAL RESULTS: " + response.totalResults + " -- " + totalPages + " more requests are needed.");
               db.Backlog.create({
-                source: source,
+                source: dbSource.id,
                 date: startAt,
                 totalArticles: response.totalResults,
                 totalPages: totalPages,
@@ -186,17 +180,17 @@ function callApi(source, startAt, pageNum, dbBacklog) {
                   console.log("ERROR: Creating Backlog " + err)
                 })
             } else if (dbBacklog) {
-              console.log("SOURCE: " + source + " PAGE: " + pageNum + " TOTAL RESULTS: " + response.totalResults + " -- " + dbBacklog.pagesRetrieved + "/" + totalPages + " pages retrieved.");
+              console.log("SOURCE: " + dbSource.id + " PAGE: " + pageNum + " TOTAL RESULTS: " + response.totalResults + " -- " + dbBacklog.pagesRetrieved + "/" + totalPages + " pages retrieved.");
               dbBacklog.increment('pagesRetrieved', {
                 by: 1
               })
                 .then(() => {
                   if (dbBacklog.pagesRetrieved >= dbBacklog.totalPages) {
-                    console.log("Removing Backlog for " + db.Backlog.source)
+                    console.log("Removing Backlog for " + db.Backlog[dbSource.id])
                     dbBacklog.destroy();
                     if (typeof response.articles[0] != 'undefined') {
                       console.log("UPDATING TIME TO " + response.articles[0].publishedAt)
-                      updateSourceNewestTime(source, response.articles[0].publishedAt)
+                      updateSourceNewestTime(dbSource, response.articles[0].publishedAt)
                     }
                   }
                 });
@@ -224,6 +218,16 @@ function callApi(source, startAt, pageNum, dbBacklog) {
             }
           } else {
             console.log("BAD response to api call ==> " + JSON.stringify(response, null, 2));
+          }
+        })
+        .catch((err) => {
+          console.log("BAD response to api call ==> " + JSON.stringify(err, null, 2));
+          // If this was a 
+          //    maximumResultsReached: You have requested too many results. Developer accounts are limited to a max of 100 results. Please upgrade to a paid plan if you need more results.
+          // then change newest to one day ago.
+          if (JSON.stringify(err).match('maximumResultsReached')) {
+            console.log(`Original startAt: ${startAt}`)
+            dbSource.update({ newest: moment().subtract(1,'day').format("YYYY-MM-DD HH:mm:SS")})
           }
         })
       }
@@ -259,10 +263,11 @@ async function sourceLoop() {
         }
       })
         .then(dbBacklog => {
-          callApi(dbSource.id, dbBacklog.startAt, dbBacklog.pagesRetrieved + 1, dbBacklog);
+          callApi(dbSource, dbBacklog.startAt, dbBacklog.pagesRetrieved + 1, dbBacklog);
         })
         .catch(err => {
-          callApi(dbSource.id, startAt, 1);
+          console.log('Error occured reading backlog -> '+JSON.stringify(err, null, 2));
+          callApi(dbSource, startAt, 1);
         })
         .then(() => {
           let apiSchedulerInterval = setTimeout(function () {
