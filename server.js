@@ -93,8 +93,8 @@ function updateApiCounter() {
 
 function updateSourceNewestTime(dbSource, time) {
   dbSource.update({ newest: time })
-    .then((dbSource) => {
-      console.log("New newest for " + dbSource.id + " : " + time)
+  .then((dbSource) => {
+      console.log("UPDATED NEWEST ARTICLE FOR "+dbSource.id+" TO " + time)
     })
     .catch(err => {
       console.log("ERROR updating source " + dbSource.id + ": " + err)
@@ -102,9 +102,6 @@ function updateSourceNewestTime(dbSource, time) {
 }
 
 function callApi(dbSource, startAt, pageNum, dbBacklog) {
-  startAt = moment(startAt).format("YYYY-MM-DD HH:mm:SS");
-  var newStartAt = startAt;
-  console.log("CALLAPI startAt: " + startAt)
   updateApiCounter()
     .then(() => {
       if (process.env.APISCHEDULER == "true") {
@@ -117,11 +114,11 @@ function callApi(dbSource, startAt, pageNum, dbBacklog) {
           from: startAt,
           sortBy: 'publishedAt'
         }).then(response => {
-          // console.log("API response: "+JSON.stringify(response, null, 2))
+          console.log("CALLAPI startAt: " + startAt)
           if (response.status == "ok" && response.totalResults) {
             var totalPages = Math.floor(response.totalResults / 100)
+            console.log("SOURCE: " + dbSource.id + " PAGE: " + pageNum + " TOTAL RESULTS: " + response.totalResults + " TOTAL PAGES REMAINING: " + totalPages);
             if (pageNum == 1 && totalPages > 0) {
-              console.log("SOURCE: " + dbSource.id + " PAGE: " + pageNum + " TOTAL RESULTS: " + response.totalResults + " -- " + totalPages + " more requests are needed.");
               db.Backlog.create({
                 source: dbSource.id,
                 date: startAt,
@@ -130,35 +127,40 @@ function callApi(dbSource, startAt, pageNum, dbBacklog) {
                 pagesRetrieved: 1,
                 startAt: startAt
               })
-                .catch(err => {
-                  console.log("ERROR: Creating Backlog " + err)
-                })
+              .catch(err => {
+                console.log("ERROR: Creating Backlog " + err)
+              })
             } else if (dbBacklog) {
-              console.log("SOURCE: " + dbSource.id + " PAGE: " + pageNum + " TOTAL RESULTS: " + response.totalResults + " -- " + dbBacklog.pagesRetrieved + "/" + totalPages + " pages retrieved.");
               dbBacklog.increment('pagesRetrieved', {
                 by: 1
               })
-                .then(() => {
-                  if (dbBacklog.pagesRetrieved >= dbBacklog.totalPages) {
-                    console.log("Removing Backlog for " + db.Backlog[dbSource.id])
-                    dbBacklog.destroy();
-                    if (typeof response.articles[0] != 'undefined') {
-                      console.log("UPDATING TIME TO " + response.articles[0].publishedAt)
-                      updateSourceNewestTime(dbSource, response.articles[0].publishedAt)
-                    }
+              .then(() => {
+                console.log("PAGES RETRIEVED: " + dbBacklog.pagesRetrieved + "/" + totalPages);
+                if (dbBacklog.pagesRetrieved >= dbBacklog.totalPages) {
+                  console.log("Removing Backlog for " + db.Backlog[dbSource.id])
+                  dbBacklog.destroy();
+                  if (typeof response.articles[0] != 'undefined') {
+                    updateSourceNewestTime(dbSource, response.articles[0].publishedAt)
                   }
+                }
                 });
             }
             if (typeof response.articles[0] != 'undefined') {
+              let newStartAt = moment(startAt).toISOString(false);
+              startAt = moment(startAt).toISOString(false);
               (response.articles).forEach(article => {
                 article.SourceId = article.source.id;
                 article.source = article.source.id;
-                db.Article.create(article)
+                article.publishedAt = moment(article.publishedAt).toISOString(false);
+                console.log("ADDED: " + article.publishedAt, article.title)
+                console.log("PUBLISHED: "+ article.publishedAt);
+                console.log("SA       : "+ startAt);
+                console.log("NSA      : "+ newStartAt);
+            db.Article.create(article)
                   .then(() => {
                     // console.log("TEST " + article.publishedAt + " " + newStartAt + " " + article.title)
-                    console.log("ADDED: " + article.publishedAt, article.title)
-                    if (moment(article.publishedAt).isSameOrAfter(startAt) && moment(article.publishedAt).isSameOrAfter(newStartAt)) {
-                      newStartAt = article.publishedAt;
+                    if (moment(article.publishedAt).isSameOrAfter(moment(startAt)) && moment(article.publishedAt).isSameOrAfter(newStartAt)) {
+                      newStartAt = moment(article.publishedAt).toISOString(false);
                       updateSourceNewestTime(source, newStartAt)
                     }
                   })
@@ -201,9 +203,9 @@ if (process.env.APISCHEDULER == "true") {
 function procSources(dbSources) {
   const now = moment().utc()
   let dbSource = dbSources[sourceIdx]
-  let startAt = dbSource.newest
+  let startAt = moment(dbSource.newest).toISOString(false)
   console.log("########################################################################################################")
-  console.log("Querying Source " + dbSource.id + " " + sourceIdx + "/" + dbSources.length + " TODAY: " + now.format('YYYY-MM-DD') + " HOUR: " + now.format('YYYY-MM-DD HH:00:00') + " starting at  " + moment(startAt).toISOString())
+  console.log("Querying Source " + dbSource.id + " " + sourceIdx + "/" + dbSources.length + " TODAY: " + now.format('YYYY-MM-DD') + " HOUR: " + now.format('YYYY-MM-DD HH:00:00') + " starting at  " + startAt)
   console.table(dbSource.dataValues);
   db.Backlog.findOne({
     where: {
