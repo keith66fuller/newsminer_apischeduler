@@ -62,7 +62,6 @@ function updateApiCounter() {
                     return reject("WARNING: " + obj1.handle + " call limit exceeded!");
                   });
               } else {
-                if (obj.qPeriod) {
                   let now = moment().utc();
                   let period = moment(obj.qPeriod ? obj.qPeriod : obj.date).utc();
                   let counter = parseInt(obj.counter);
@@ -82,40 +81,14 @@ function updateApiCounter() {
                     console.log("New interval " + API_INTERVAL);
                   }
 
-
                   let t = moment.duration(moment(moment()).utc().diff(obj.qPeriod));
                   resolve((created ? "New" : "Existing") + " API " + obj1.handle + " call counter for " + obj1.temporal + " is " + obj.counter + " with " + t + " seconds remaining in the " + obj.qPeriod + " period");
-                } else {
-                  let t = moment.duration(moment(moment()).utc().diff(obj.date));
-                  resolve((created ? "New" : "Existing") + " API " + obj1.handle + " call counter for " + obj1.temporal + " is " + obj.counter + " with " + t + " seconds remaining in the " + obj.date + " period");
-                }
+                
               }
             });
         }
       });
   });
-}
-
-function updateApiCounters() {
-  // Update the API call counter in DB
-  // If we reach hourly (250) or daily (1000) api call limits, cancel the setInterval
-  return new Promise(async function (resolve, reject) {
-    const today = moment().utc().format('YYYY-MM-DD');
-    const dayStart = moment().utc().startOf('day');
-    let q1 = moment().utc().diff(dayStart, 's');
-    const qPeriod = dayStart.add(q1 - q1 % 21600, 's').toISOString();
-    console.log("QPERIOD: " + qPeriod);
-
-    var p1 = await updateApiCounter()
-      .catch(err => {
-        console.log(err);
-        return reject("WARNING: One or more api counters exceeded!")
-      })
-      .then(data => {
-        console.log(data);
-        resolve();
-      });
-  })
 }
 
 function updateSourceNewestTime(dbSource, time) {
@@ -207,8 +180,9 @@ function callApi(dbSource, startAt, pageNum, dbBacklog) {
           //    maximumResultsReached: You have requested too many results. Developer accounts are limited to a max of 100 results. Please upgrade to a paid plan if you need more results.
           // then change newest to one day ago.
           if (JSON.stringify(err).match('maximumResultsReached')) {
-            newStartAt = moment().subtract(1,'day').format("YYYY-MM-DD HH:mm:SS")
-            console.log(`Original startAt: ${startAt}  New startAt: ${newStartAt}`)
+            // Unfortunately it seems that minus one day is to much.  resetting this to 4 hours ago.
+            newStartAt = moment().subtract(4,'hours')
+            console.log(`Original startAt: ${moment(startAt).format("YYYY-MM-DD HH:mm:SS")}  New startAt: ${newStartAt}`)
             dbSource.update({ newest: newStartAt})
           }
         })
