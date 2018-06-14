@@ -1,0 +1,6 @@
+
+# alternate key for testing is 20657ca17e3e4f3080a9e0730bcce80f
+declare -x NEWSAPIKEY=20657ca17e3e4f3080a9e0730bcce80f
+declare -x API_INTERVAL=90000
+declare -x APISCHEDULER=true
+declare -x NODE_ENV=developmentA

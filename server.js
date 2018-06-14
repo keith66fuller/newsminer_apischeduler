@@ -69,7 +69,7 @@ function updateApiCounter() {
                   console.log("PERIOD: " + period)
                   console.log("DIFF  : " + Math.floor(now.diff(period)))
                   console.log("Calls remaining: " + (250 - counter))
-                  let newInterval = Math.floor(Math.floor(now.diff(period)) / (250 - counter));
+                  let newInterval = Math.floor(Math.floor(now.diff(period)/1000) / (250 - counter));
                   newInterval = (newInterval >= 14000) ? newInterval : 14000
                   let newIntervalS = Math.floor(newInterval / 1000);
                   let intervalDiff = parseInt(API_INTERVAL) - newInterval;
